@@ -1,0 +1,15 @@
+node_modules/
+dist/
+build/
+tmp/
+content/
+public/manifest.json
+public/index.bin
+public/targets/
+public/media/
+public/audio/
+.DS_Store
+*.part.mp4
+public/index.bin.gz
+__pycache__/
+*.pyc

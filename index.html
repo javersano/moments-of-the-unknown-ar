@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Moments of the Unknown</title>
+  <meta name="description" content="Point your camera at a painting and watch the moment it came from." />
+  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="./icon-180.png" />
+  <link rel="manifest" href="./app.webmanifest" />
+  <link rel="stylesheet" href="./src/styles.css" />
+</head>
+<body>
+  <div id="stage">
+    <video id="camera" playsinline muted autoplay></video>
+    <canvas id="gl"></canvas>
+  </div>
+
+  <section id="intro" aria-live="polite">
+    <div class="card">
+      <p class="eyebrow">Justin Aversano</p>
+      <h1>Moments of the Unknown</h1>
+      <p class="lede">Point your camera at a painting and watch the moment it came from.</p>
+      <button id="start" disabled><span class="label">Preparing…</span><span class="bar"></span></button>
+      <p class="fine" id="intro-note">Sound on. Camera stays on your phone. Nothing is recorded unless you press record.</p>
+    </div>
+  </section>
+
+  <div id="header" class="pill"><span id="header-text">Moments of the Unknown</span></div>
+  <div id="hint" class="pill">Point at a painting</div>
+
+  <div id="controls" class="pill">
+    <div class="buttons">
+      <button id="shot-btn" class="icon-btn" aria-label="Save photo">
+        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      </button>
+      <button id="record-btn" class="icon-btn" aria-label="Record video"><span class="rec-dot"></span></button>
+      <button id="sound-btn" class="icon-btn" aria-label="Sound">
+        <svg class="on" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
+        <svg class="off" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+      </button>
+      <button id="poet-btn" class="icon-btn" aria-label="Poet mode">
+        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+      </button>
+    </div>
+    <div class="slider">
+      <label for="opacity">Opacity</label>
+      <input id="opacity" type="range" min="0" max="100" step="1" value="100" />
+      <span id="opacity-value">100%</span>
+    </div>
+  </div>
+
+  <div id="diary"><div class="diary-title"></div><div class="diary-body"></div><div class="diary-hint">Tap anywhere to close</div></div>
+  <div id="rec-border"></div>
+  <div id="toast"></div>
+  <pre id="debug"></pre>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

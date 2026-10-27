@@ -1,0 +1,21 @@
+{
+  "title": "Moments of the Unknown",
+  "volume": 0.5,
+  "collections": [
+    {
+      "name": "366",
+      "kind": "numbered",
+      "images": "content/paintings",
+      "videos": "content/media/366",
+      "texts": "content/texts.json",
+      "startDate": "2023-04-08",
+      "label": "Day {n} · {date}"
+    },
+    {
+      "name": "bonus",
+      "kind": "list",
+      "file": "content/bonus/bonus.json"
+    }
+  ],
+  "engine": {}
+}
