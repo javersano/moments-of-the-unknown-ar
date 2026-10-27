@@ -40,7 +40,7 @@ You need [Node.js 20+](https://nodejs.org) and [ffmpeg](https://ffmpeg.org).
 ```bash
 git clone https://github.com/<you>/moments-of-the-unknown-ar
 cd moments-of-the-unknown-ar
-npm install
+npm install --ignore-scripts   # mind-ar lists a native package we never use
 ```
 
 1. **Photos of the artworks** → `content/paintings/` named by number: `1.png`, `2.jpg` …
