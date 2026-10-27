@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import zlib from 'node:zlib';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import sharp from 'sharp';
 import { readTargetPoints, buildIndex } from './build-index.mjs';
 import { serializeIndex } from '../src/ar/recognizer.js';
@@ -110,6 +110,14 @@ for (const a of artworks) {
 }
 
 // ------------------------------------------------------------ 2. targets (parallel, cached)
+// Restore precompiled targets shipped as build/cache/*.tar (saves ~12 s per artwork).
+const cacheDir = path.join(BUILD, 'cache');
+if (fs.existsSync(cacheDir)) {
+  for (const t of fs.readdirSync(cacheDir).filter((f) => f.endsWith('.tar')).sort()) {
+    const r = spawnSync('tar', ['-xf', path.join(cacheDir, t), '-k', '-C', BUILD], { stdio: 'ignore' });
+    if (r.status !== 0 && r.status !== 1) warnings.push(`could not unpack ${t}`);
+  }
+}
 const mindOf = (a) => path.join(BUILD, 'targets', `${a.id}.mind`);
 const stale = artworks.filter((a) => !upToDate(mindOf(a), a.refHash));
 if (stale.length) {
