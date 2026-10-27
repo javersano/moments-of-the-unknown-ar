@@ -1,46 +1,4 @@
-# Netlify: the built site is plain static files.
-# Deploy either by connecting the GitHub repo (build runs here) or by
-# uploading the dist/ folder (drag-and-drop or `netlify deploy --prod --dir=dist`).
+# Optional: only used if this site is hosted on Netlify. Response headers live in public/_headers.
 [build]
   command = "npm run build:site"
   publish = "dist"
-
-# Media and targets are versioned by ?v=<hash> in manifest.json, so they can be cached forever.
-[[headers]]
-  for = "/media/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-    Access-Control-Allow-Origin = "*"
-[[headers]]
-  for = "/targets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-    Content-Type = "application/octet-stream"
-[[headers]]
-  for = "/audio/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-[[headers]]
-  for = "/assets/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-[[headers]]
-  for = "/index.bin"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-    Content-Type = "application/octet-stream"
-# The manifest and page must always be fresh so new builds show up immediately.
-[[headers]]
-  for = "/manifest.json"
-  [headers.values]
-    Cache-Control = "no-cache"
-[[headers]]
-  for = "/*"
-  [headers.values]
-    Permissions-Policy = "camera=(self)"
-    X-Content-Type-Options = "nosniff"
-[[headers]]
-  for = "/index.bin.gz"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
-    Content-Type = "application/octet-stream"

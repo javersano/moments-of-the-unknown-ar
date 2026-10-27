@@ -1,0 +1,24 @@
+# Response headers for the static host. Same file works on Cloudflare Pages and Netlify.
+# Films, targets and the index are versioned by ?v=<hash> in manifest.json -> cache forever.
+/media/*
+  Cache-Control: public, max-age=31536000, immutable
+  Access-Control-Allow-Origin: *
+/targets/*
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/octet-stream
+/audio/*
+  Cache-Control: public, max-age=31536000, immutable
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+/index.bin
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/octet-stream
+/index.bin.gz
+  Cache-Control: public, max-age=31536000, immutable
+  Content-Type: application/octet-stream
+# The manifest must always be fresh so a new build shows up immediately.
+/manifest.json
+  Cache-Control: no-cache
+/*
+  Permissions-Policy: camera=(self)
+  X-Content-Type-Options: nosniff

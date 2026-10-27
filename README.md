@@ -98,17 +98,26 @@ frame rate and recognition scores.
 
 ## Hosting
 
-The built site is plain static files: `index.html`, a JS bundle, `manifest.json`,
-`index.bin`, `targets/`, `media/`. Any static host works — Netlify, Cloudflare Pages,
-an S3 bucket, a Raspberry Pi on the gallery Wi‑Fi, or IPFS/Arweave. All paths in
-`manifest.json` are relative, and media URLs carry a content hash (`?v=…`) so they can
-be cached forever. The viewer can also be pointed at a manifest hosted elsewhere:
-`https://your-site/?manifest=https://some-gateway/manifest.json`.
+The built site is plain static files (`index.html`, a JS bundle, `manifest.json`,
+`index.bin.gz`, `targets/`, `media/`), with response headers in `_headers`. Any static host works.
+
+**Recommended: Cloudflare Pages (free).** Static files are served with no bandwidth charge,
+so a busy opening can't run up a bill or get the site paused. Up to 20,000 files and
+25 MiB per file; the dashboard's drag-and-drop upload takes a folder of up to 1,000 files
+(366 artworks ≈ 760 files). Larger collections: `npx wrangler pages deploy dist`.
+
+Other hosts: Netlify (reads the same `_headers`; bandwidth is metered), an S3/R2 bucket,
+a computer on the gallery Wi‑Fi, or IPFS/Arweave. All paths in `manifest.json` are
+relative and media URLs carry a content hash (`?v=…`), so files can be cached forever.
+To keep the films somewhere else, set `"assetBase": "https://media.example.com/"` in
+`motu.config.json` and upload `public/media`, `public/targets` and `public/audio` there
+(that host must send `Access-Control-Allow-Origin: *`). The viewer can also load a manifest
+hosted elsewhere: `https://your-site/?manifest=https://some-gateway/manifest.json`.
 
 Camera access requires HTTPS (or `localhost`).
 
-Approximate sizes: app ~350 KB, index ~1–3 MB, each artwork ~0.65 MB target + ~2.2 MB film
-(a visitor only downloads what they point at).
+Approximate sizes: app ~350 KB, index ~5 MB (once per visitor), each artwork ~0.65 MB
+target + ~2.2 MB film. A visitor only downloads what they point at.
 
 ## Licenses
 
