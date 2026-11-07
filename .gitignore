@@ -3,6 +3,7 @@ dist/
 build/
 tmp/
 content/
+content
 .DS_Store
 *.part.mp4
 __pycache__/
