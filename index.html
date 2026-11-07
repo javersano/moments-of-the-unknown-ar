@@ -3,15 +3,15 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#000000" />
+  <meta name="theme-color" content="#2B1D13" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Moments of the Unknown</title>
-  <meta name="description" content="Point your camera at a painting and watch the moment it came from." />
-  <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+  <title>MOTU — Moments of the Unknown</title>
+  <meta name="description" content="Point your phone at a painting and watch the moment it came from." />
+  <link rel="icon" href="./icon-180.png" type="image/png" />
   <link rel="apple-touch-icon" href="./icon-180.png" />
   <link rel="manifest" href="./app.webmanifest" />
-  <link rel="stylesheet" href="./src/styles.css" />
+  <link rel="preload" href="./brand/parchment.jpg" as="image" />
 </head>
 <body>
   <div id="stage">
@@ -19,43 +19,79 @@
     <canvas id="gl"></canvas>
   </div>
 
-  <section id="intro" aria-live="polite">
-    <div class="card">
-      <p class="eyebrow">Justin Aversano</p>
-      <h1>Moments of the Unknown</h1>
-      <p class="lede">Point your camera at a painting and watch the moment it came from.</p>
-      <button id="start" disabled><span class="label">Preparing…</span><span class="bar"></span></button>
-      <p class="fine" id="intro-note">Sound on. Camera stays on your phone. Nothing is recorded unless you press record.</p>
+  <section id="intro" class="paper" aria-live="polite">
+    <div class="frame" aria-hidden="true"></div>
+    <div class="intro-inner">
+      <header class="intro-top">
+        <img class="crest" src="./brand/crest.png" alt="" />
+        <h1><img class="wordmark" src="./brand/wordmark.png" alt="Moments of the Unknown" /></h1>
+        <p class="dateline"><span>11.11</span> <em>on East 11</em></p>
+        <div class="double-rule" aria-hidden="true"></div>
+        <p class="sc ruled">See the Paintings come Alive</p>
+      </header>
+      <figure class="plate">
+        <img src="./brand/plate-001.jpg" alt="No. 001, Knight of Cups" />
+        <figcaption>No. 001 — April 8, 2023</figcaption>
+      </figure>
+      <footer class="intro-bottom">
+        <div class="double-rule" aria-hidden="true"></div>
+        <button id="start" disabled><span class="label">Preparing…</span><span class="bar"></span></button>
+        <p class="sc fine" id="intro-note">Point at any Painting · Sound On</p>
+        <div class="short-rule" aria-hidden="true"></div>
+        <p class="sc credit">Curated by Justin Aversano and Viktoria Nagibina</p>
+      </footer>
     </div>
   </section>
 
-  <div id="header" class="pill"><span id="header-text">Moments of the Unknown</span></div>
-  <div id="hint" class="pill">Point at a painting</div>
+  <div id="header" class="paper tab"><img src="./brand/crest.png" alt="" /><span>MOTU</span></div>
+  <div id="hint" class="paper">Point at a painting — hold steady</div>
 
-  <div id="controls" class="pill">
-    <div class="buttons">
-      <button id="shot-btn" class="icon-btn" aria-label="Save photo">
-        <svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      </button>
-      <button id="record-btn" class="icon-btn" aria-label="Record video"><span class="rec-dot"></span></button>
-      <button id="sound-btn" class="icon-btn" aria-label="Sound">
-        <svg class="on" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a10 10 0 0 1 0 14"/></svg>
-        <svg class="off" viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-      </button>
-      <button id="poet-btn" class="icon-btn" aria-label="Poet mode">
-        <svg viewBox="0 0 24 24"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      </button>
-    </div>
+  <section id="card" class="paper" aria-live="polite">
+    <div class="frame" aria-hidden="true"></div>
+    <p id="caption"></p>
+    <h2 id="title"></h2>
+    <div class="double-rule" aria-hidden="true"></div>
     <div class="slider">
-      <label for="opacity">Opacity</label>
+      <label for="opacity" class="sc">Film</label>
       <input id="opacity" type="range" min="0" max="100" step="1" value="100" />
       <span id="opacity-value">100%</span>
     </div>
-  </div>
+    <div class="buttons">
+      <button id="sound-btn" class="btn">
+        <svg class="on" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8H3z"/><path d="M13.5 7.5a3.5 3.5 0 0 1 0 5M15.5 5.5a6.5 6.5 0 0 1 0 9"/></svg>
+        <svg class="off" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8v4h3l4 3V5L6 8H3z"/><path d="M13 8l4 4M17 8l-4 4"/></svg>
+        <span>Sound</span>
+      </button>
+      <button id="poet-btn" class="btn">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 3h8l3 3v11H5z"/><path d="M8 9h6M8 12h6M8 15h4"/></svg>
+        <span>Poet</span>
+      </button>
+      <button id="shot-btn" class="btn">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 6.5h3l1.5-2h6l1.5 2h3v9h-15z"/><circle cx="10" cy="11" r="3"/></svg>
+        <span>Photo</span>
+      </button>
+      <button id="record-btn" class="btn"><span class="rec-dot"></span><span>Record</span></button>
+    </div>
+  </section>
 
-  <div id="diary"><div class="diary-title"></div><div class="diary-body"></div><div class="diary-hint">Tap anywhere to close</div></div>
+  <section id="diary" class="paper" aria-live="polite">
+    <div class="frame" aria-hidden="true"></div>
+    <div class="diary-head">
+      <span class="sc strong">Poet Mode</span>
+      <button id="diary-close" class="icon" aria-label="Leave Poet Mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+    </div>
+    <p id="diary-caption"></p>
+    <h2 id="diary-title"></h2>
+    <div class="double-rule" aria-hidden="true"></div>
+    <div id="diary-body"></div>
+    <div class="narration">
+      <div class="track"><div id="narr-progress"></div></div>
+      <span class="sc">Read by Justin Aversano</span>
+    </div>
+  </section>
+
   <div id="rec-border"></div>
-  <div id="toast"></div>
+  <div id="toast" class="paper"></div>
   <pre id="debug"></pre>
 
   <script type="module" src="./src/main.js"></script>

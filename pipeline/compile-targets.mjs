@@ -10,6 +10,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import * as msgpack from '@msgpack/msgpack';
 import { Detector, buildImageList, buildTrackingImageList, buildCluster, extractTrackingFeatures, tf } from './lib/mind.mjs';
+import { DEFAULT_VIEWS, viewQuad, renderView, homography } from './lib/views.mjs';
 
 export const TARGET_SIZE = 1024; // compile resolution (long side); 4:3 works -> 1024x768
 
@@ -32,26 +33,51 @@ function detectorFor(w, h) {
   return detectors.get(k);
 }
 
-export function compileGrey(targetImage) {
-  const keyframes = [];
-  for (const image of buildImageList(targetImage)) {
-    const det = detectorFor(image.width, image.height);
-    const ps = tf.tidy(() => {
-      const t = tf.tensor(image.data, [image.data.length], 'float32').reshape([image.height, image.width]);
-      return det.detect(t).featurePoints;
-    });
-    const maximaPoints = ps.filter((p) => p.maxima);
-    const minimaPoints = ps.filter((p) => !p.maxima);
-    keyframes.push({
-      maximaPoints, minimaPoints,
-      maximaPointsCluster: buildCluster({ points: maximaPoints }),
-      minimaPointsCluster: buildCluster({ points: minimaPoints }),
-      width: image.width, height: image.height, scale: image.scale,
-    });
+function detectKeyframe(image, keep) {
+  const det = detectorFor(image.width, image.height);
+  let ps = tf.tidy(() => {
+    const t = tf.tensor(image.data, [image.data.length], 'float32').reshape([image.height, image.width]);
+    return det.detect(t).featurePoints;
+  });
+  if (keep) ps = ps.filter(keep);
+  const maximaPoints = ps.filter((p) => p.maxima);
+  const minimaPoints = ps.filter((p) => !p.maxima);
+  return {
+    maximaPoints, minimaPoints,
+    maximaPointsCluster: buildCluster({ points: maximaPoints }),
+    minimaPointsCluster: buildCluster({ points: minimaPoints }),
+    width: image.width, height: image.height, scale: image.scale,
+  };
+}
+
+// Keyframe scales that get oblique views: where a canvas sits in a phone frame
+// from a normal viewing distance (roughly 250-550 px across in a 640x480 camera).
+export const VIEW_SCALES = [0.5, 0.32];
+
+/**
+ * Compile one artwork. `views` adds keyframes rendered from oblique angles
+ * (pipeline/lib/views.mjs) so recognition and the first lock work from the side,
+ * not only head-on. Pass views: [] for a plain MindAR target.
+ */
+export function compileGrey(targetImage, { views = DEFAULT_VIEWS, viewScales = VIEW_SCALES } = {}) {
+  const images = buildImageList(targetImage);
+  const keyframes = images.map((image) => detectKeyframe(image));
+  const W = targetImage.width, H = targetImage.height;
+  for (const want of views.length ? viewScales : []) {
+    const image = images.reduce((a, b) => (Math.abs(b.scale - want) < Math.abs(a.scale - want) ? b : a));
+    for (const v of views) {
+      const quad = viewQuad(image.width, image.height, v.yaw, v.pitch);
+      const r = renderView(image, quad);
+      const kf = detectKeyframe(r, (p) => r.inside[Math.round(p.y) * r.width + Math.round(p.x)] === 1);
+      kf.scale = image.scale;
+      kf.toWorld = homography(quad, [[0, 0], [W, 0], [W, H], [0, H]]);
+      kf.view = [v.yaw, v.pitch];
+      keyframes.push(kf);
+    }
   }
   const trackingData = extractTrackingFeatures(buildTrackingImageList(targetImage), () => {});
   return {
-    targetImage: { width: targetImage.width, height: targetImage.height },
+    targetImage: { width: W, height: H },
     trackingData,
     matchingData: keyframes,
   };
@@ -72,7 +98,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const out = path.join(outDir, `${id}.mind`);
     if (!force && fs.existsSync(out) && fs.statSync(out).mtimeMs > fs.statSync(path.join(inDir, f)).mtimeMs) continue;
     const t0 = Date.now();
-    const target = compileGrey(await loadGrey(path.join(inDir, f)));
+    const target = compileGrey(await loadGrey(path.join(inDir, f)), process.argv.includes('--plain') ? { views: [] } : {});
     const buf = encodeMind([target]);
     fs.writeFileSync(out + '.tmp', buf);
     fs.renameSync(out + '.tmp', out);

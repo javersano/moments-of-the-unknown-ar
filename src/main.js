@@ -1,7 +1,13 @@
 import {
   WebGLRenderer, Scene, PerspectiveCamera, Mesh, PlaneGeometry, MeshBasicMaterial,
   VideoTexture, Matrix4, Vector3, Quaternion, SRGBColorSpace, LinearFilter,
+  BufferGeometry, Float32BufferAttribute, LineSegments, LineBasicMaterial, Color,
 } from 'three';
+import '@fontsource/playfair-display/400.css';
+import '@fontsource/playfair-display/400-italic.css';
+import '@fontsource/playfair-display-sc/400.css';
+import '@fontsource/playfair-display-sc/700.css';
+import './styles.css';
 import { deserializeIndex } from './ar/recognizer.js';
 import { ArtworkEngine } from './ar/engine.js';
 import { Media } from './media.js';
@@ -107,6 +113,21 @@ const plane = new Mesh(new PlaneGeometry(1, 1), material);
 plane.matrixAutoUpdate = false;
 plane.visible = false;
 scene.add(plane);
+const cornerMat = new LineBasicMaterial({ color: new Color('#ECE2D2'), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+const corners = new LineSegments(new BufferGeometry(), cornerMat);
+corners.matrixAutoUpdate = false;
+corners.visible = false;
+scene.add(corners);
+function cornerGeometry(aspect) { // plane is 1 wide, `aspect` (h/w) tall, centred
+  const v = [], hw = 0.5, hh = aspect / 2, L = 0.07;
+  for (const o of [0.018, 0.03]) { // two strokes = a double rule
+    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+      const x = sx * (hw + o), y = sy * (hh + o);
+      v.push(x, y, 0, x - sx * L, y, 0, x, y, 0, x, y - sy * L, 0);
+    }
+  }
+  const g = new BufferGeometry(); g.setAttribute('position', new Float32BufferAttribute(v, 3)); return g;
+}
 const textures = new Map(); // video element -> VideoTexture
 
 function textureFor(el) {
@@ -167,8 +188,8 @@ function onUpdate({ index: i, worldMatrix, markerSize }) {
   if (!worldMatrix) {
     if (current === art) {
       showing = false; media.release(art);
-      document.body.classList.add('searching'); $('diary').classList.remove('visible');
-      $('header-text').textContent = manifest.title; hint('Point at a painting');
+      document.body.classList.add('searching'); document.body.classList.remove('poet-open');
+      hint('Point at a painting — hold steady');
     }
     return;
   }
@@ -183,15 +204,21 @@ function onUpdate({ index: i, worldMatrix, markerSize }) {
     planeAspect = w / h;
     plane.geometry.dispose();
     plane.geometry = new PlaneGeometry(1, h / w);
+    corners.geometry.dispose();
+    corners.geometry = cornerGeometry(h / w);
     post.compose(new Vector3(w / 2, h / 2, 0), new Quaternion(), new Vector3(w, w, w));
     fitTexture(material.map, art, el, planeAspect);
     material.needsUpdate = true;
-    $('header-text').textContent = art.label || manifest.title;
+    $('caption').textContent = $('diary-caption').textContent = art.label || '';
+    $('title').textContent = $('diary-title').textContent = art.title || '';
+    $('diary-body').textContent = art.diary || '';
+    $('diary-body').scrollTop = 0;
     log('found', art.id);
   }
   if (!showing) {
     showing = true;
     document.body.classList.remove('searching');
+    document.body.classList.toggle('poet-open', poet && !!art.diary);
     media.play(art, { poet, restart: isNew }).then((el) => { if (current === art) fitTexture(material.map, art, el, planeAspect); });
   }
   pose = worldMatrix;
@@ -205,8 +232,13 @@ function frame(now) {
   const step = dt / (showing ? FADE_MS : 220);
   opacity += Math.sign(target - opacity) * Math.min(Math.abs(target - opacity), step);
   material.opacity = opacity;
-  plane.visible = opacity > 0.001 && !!pose;
-  if (pose) plane.matrix.fromArray(pose).multiply(post);
+  plane.visible = corners.visible = opacity > 0.001 && !!pose;
+  cornerMat.opacity = Math.min(1, opacity * 1.2);
+  if (pose) { plane.matrix.fromArray(pose).multiply(post); corners.matrix.copy(plane.matrix); }
+  if (poet && showing) {
+    const n = media.narration;
+    $('narr-progress').style.width = n.duration ? `${(100 * n.currentTime / n.duration).toFixed(1)}%` : '0%';
+  }
   renderer.render(scene, cam3);
   requestAnimationFrame(frame);
 }
@@ -298,12 +330,17 @@ soundBtn.addEventListener('click', (e) => {
 
 const poetBtn = $('poet-btn');
 poetBtn.classList.toggle('active', poet);
+function setPoet(on) {
+  poet = on; store.set('poet', poet);
+  poetBtn.classList.toggle('active', poet);
+  document.body.classList.toggle('poet-open', poet && showing && !!(current && current.diary));
+  if (showing && current) media.play(current, { poet });
+  if (poet && current && !current.diary && !current.audio) toast('No journal for this one', 1400);
+}
+$('diary-close').addEventListener('click', (e) => { e.stopPropagation(); setPoet(false); });
 poetBtn.addEventListener('click', (e) => {
   e.stopPropagation();
-  poet = !poet; store.set('poet', poet);
-  poetBtn.classList.toggle('active', poet);
-  toast(poet ? 'Poet Mode on — tap the painting to read' : 'Poet Mode off', 1400);
-  if (showing && current) media.play(current, { poet });
+  setPoet(!poet);
 });
 
 $('shot-btn').addEventListener('click', async (e) => {
@@ -328,18 +365,10 @@ recBtn.addEventListener('click', async (e) => {
   }
 });
 
-// tap the view: pause/play, or read the diary in Poet Mode
-const diary = $('diary');
+// tap the camera view: pause / play
 document.body.addEventListener('click', (e) => {
-  if (e.target.closest('#controls, #intro, #header')) return;
-  if (diary.classList.contains('visible')) { diary.classList.remove('visible'); return; }
+  if (e.target.closest('#card, #diary, #intro, #header')) return;
   if (!showing || !current) return;
-  if (poet && current.diary) {
-    diary.querySelector('.diary-title').textContent = current.label || manifest.title;
-    diary.querySelector('.diary-body').textContent = current.diary;
-    diary.classList.add('visible');
-    return;
-  }
   paused = media.togglePause(current);
   toast(paused ? 'Paused' : 'Playing', 800);
 });

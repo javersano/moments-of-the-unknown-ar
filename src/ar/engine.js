@@ -11,6 +11,7 @@ import * as msgpack from '@msgpack/msgpack';
 import { Controller } from 'mind-ar/src/image-target/controller.js';
 import { Tracker } from 'mind-ar/src/image-target/tracker/tracker.js';
 import { OneEuroFilter } from 'mind-ar/src/libs/one-euro-filter.js';
+import { buildModelViewProjectionTransform, computeScreenCoordiate } from 'mind-ar/src/image-target/estimation/utils.js';
 import { bagOfWords, scoreBag } from './recognizer.js';
 
 const DEFAULTS = {
@@ -167,6 +168,33 @@ export class ArtworkEngine {
     this._request(want);
   }
 
+  /**
+   * Reject a first lock whose pose can't be a real canvas: corners behind the
+   * camera, a twisted (non-convex) outline, or a size far off the frame. Side-on
+   * matches are the ones that occasionally produce these; dropping them costs a
+   * frame, showing them would put the film in the wrong place.
+   */
+  _plausible(mvt, slot) {
+    const c = this.controller;
+    const [w, h] = c.markerDimensions[slot];
+    const mvp = buildModelViewProjectionTransform(c.projectionTransform, mvt);
+    const z = (x, y) => mvt[2][0] * x + mvt[2][1] * y + mvt[2][3];
+    const corners = [[0, 0], [w, 0], [w, h], [0, h]];
+    if (corners.some(([x, y]) => z(x, y) <= 0)) return false;
+    const p = corners.map(([x, y]) => computeScreenCoordiate(mvp, x, y, 0));
+    let sign = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = p[i], b = p[(i + 1) % 4], d = p[(i + 2) % 4];
+      const cr = (b.x - a.x) * (d.y - b.y) - (b.y - a.y) * (d.x - b.x);
+      if (!Number.isFinite(cr) || Math.abs(cr) < 1) return false;
+      if (sign && Math.sign(cr) !== sign) return false;
+      sign = Math.sign(cr);
+    }
+    const area = Math.abs(p.reduce((s, q, i) => s + q.x * p[(i + 1) % 4].y - p[(i + 1) % 4].x * q.y, 0)) / 2;
+    const frame = this.w * this.h;
+    return area > frame * 0.01 && area < frame * 4;
+  }
+
   // ------------------------------------------------------------------ loop
   _freshState() {
     return { slot: -1, tracking: false, showing: false, count: 0, miss: 0, mvt: null,
@@ -199,7 +227,7 @@ export class ArtworkEngine {
         this._recognize(featurePoints);
         if (this.slots.length && c.tracker) {
           const { targetIndex, modelViewTransform } = await c._workerMatch(featurePoints, this.slots.map((_, k) => k));
-          if (targetIndex !== -1 && this.running) {
+          if (targetIndex !== -1 && this.running && this._plausible(modelViewTransform, targetIndex)) {
             if (st.showing && st.slot !== targetIndex) this._hide();
             if (st.slot !== targetIndex) { st.count = 0; st.filter.reset(); }
             st.slot = targetIndex; st.tracking = true; st.mvt = modelViewTransform;

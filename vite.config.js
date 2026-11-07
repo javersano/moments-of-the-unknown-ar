@@ -6,7 +6,13 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   base: './',
   plugins: [basicSsl()],
-  resolve: { alias: [{ find: /^@tensorflow\/tfjs$/, replacement: fileURLToPath(new URL('./src/ar/tf-lite.js', import.meta.url)) }] },
+  resolve: {
+    alias: [
+      { find: /^@tensorflow\/tfjs$/, replacement: fileURLToPath(new URL('./src/ar/tf-lite.js', import.meta.url)) },
+      // angle-trained targets: MindAR's matcher, plus side-view keyframes (src/ar/matcher.js)
+      { find: /^\.\/matching\/matcher\.js$/, replacement: fileURLToPath(new URL('./src/ar/matcher.js', import.meta.url)) },
+    ],
+  },
   server: { host: true, https: true },
   preview: { host: true, https: true },
   build: { target: 'es2020', outDir: 'dist', assetsInlineLimit: 0, chunkSizeWarningLimit: 4000, copyPublicDir: true },

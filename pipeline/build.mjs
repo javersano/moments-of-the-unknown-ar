@@ -67,7 +67,7 @@ for (const col of config.collections) {
       const src = sources[pad(n)] || '';
       const tm = src.match(/-\s*(\d{2})(\d{2})\s*\./);
       const time = tm ? `${tm[1]}:${tm[2]}` : '';
-      const label = (t.label || col.label || '{n}').replace('{n}', n).replace('{date}', date).replace('{time}', time).replace('{title}', t.title || '');
+      const label = (t.label || col.label || '{n}').replace('{nnn}', pad(n)).replace('{n}', n).replace('{date}', date).replace('{time}', time).replace('{title}', t.title || '');
       artworks.push({
         id: pad(n), collection: col.name, n, title: t.title || null, label, date, time,
         image: path.join(R(col.images), f), video: path.join(R(col.videos), v),
@@ -97,6 +97,8 @@ console.log(`${artworks.length} artworks (${config.collections.map((c) => `${c.n
 // copies between machines change mtimes, and recompiling 366 targets takes a while.
 const md5 = (f) => crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex');
 const upToDate = (out, srcHash) => fs.existsSync(out) && fs.existsSync(`${out}.src`) && fs.readFileSync(`${out}.src`, 'utf8') === srcHash;
+// Bump when compile-targets changes what it stores (e.g. the angle-trained keyframes), so old targets rebuild.
+const COMPILE = 'views-1';
 
 // ------------------------------------------------------------ 1. reference images
 for (const a of artworks) {
@@ -119,19 +121,29 @@ if (fs.existsSync(cacheDir)) {
   }
 }
 const mindOf = (a) => path.join(BUILD, 'targets', `${a.id}.mind`);
-const stale = artworks.filter((a) => !upToDate(mindOf(a), a.refHash));
+const stale = artworks.filter((a) => !upToDate(mindOf(a), `${a.refHash}:${COMPILE}`));
 if (stale.length) {
   console.log(`compiling ${stale.length} targets with ${JOBS} workers…`);
   const listDir = path.join(BUILD, 'stale');
   fs.rmSync(listDir, { recursive: true, force: true }); fs.mkdirSync(listDir);
   for (const a of stale) fs.symlinkSync(a.ref, path.join(listDir, `${a.id}.jpg`));
+  // Each finished target is stamped at once, so a long compile can be stopped and resumed.
+  const byId = new Map(stale.map((a) => [a.id, a]));
+  const stamp = (line) => {
+    const m = line.match(/^(\S+)\s+\d+ KB/);
+    const a = m && byId.get(m[1]);
+    if (a && fs.existsSync(mindOf(a))) fs.writeFileSync(`${mindOf(a)}.src`, `${a.refHash}:${COMPILE}`);
+  };
   await Promise.all(Array.from({ length: JOBS }, (_, i) => new Promise((res, rej) => {
-    const p = spawn(process.execPath, [path.join(ROOT, 'pipeline/compile-targets.mjs'), listDir, path.join(BUILD, 'targets'), `--shard=${i}/${JOBS}`, '--force'], { stdio: ['ignore', 'pipe', 'inherit'] });
-    p.stdout.on('data', (d) => process.stdout.write(String(d).split('\n').filter((l) => /KB/.test(l)).map((l) => `  ${l}\n`).join('')));
+    const p = spawn(process.execPath, [path.join(ROOT, 'pipeline/compile-targets.mjs'), listDir, path.join(BUILD, 'targets'), `--shard=${i}/${JOBS}`], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let buf = '';
+    p.stdout.on('data', (d) => {
+      buf += d; const lines = buf.split('\n'); buf = lines.pop();
+      for (const l of lines) if (/KB/.test(l)) { stamp(l); process.stdout.write(`  ${l}\n`); }
+    });
     p.on('close', (c) => (c === 0 ? res() : rej(new Error(`compile worker ${i} exited ${c}`))));
   })));
   fs.rmSync(listDir, { recursive: true, force: true });
-  for (const a of stale) if (fs.existsSync(mindOf(a))) fs.writeFileSync(`${mindOf(a)}.src`, a.refHash);
 }
 
 // ------------------------------------------------------------ 3. index

@@ -13,19 +13,21 @@
   "author": "Justin Aversano",
   "license": "MIT",
   "dependencies": {
-    "mind-ar": "1.2.5",
-    "three": "0.160.0",
-    "@tensorflow/tfjs": "4.22.0",
+    "@fontsource/playfair-display": "5.3.0",
+    "@fontsource/playfair-display-sc": "5.3.0",
     "@msgpack/msgpack": "2.8.0",
-    "@tensorflow/tfjs-core": "4.22.0",
+    "@tensorflow/tfjs": "4.22.0",
+    "@tensorflow/tfjs-backend-cpu": "4.22.0",
     "@tensorflow/tfjs-backend-webgl": "4.22.0",
-    "@tensorflow/tfjs-backend-cpu": "4.22.0"
+    "@tensorflow/tfjs-core": "4.22.0",
+    "mind-ar": "1.2.5",
+    "three": "0.160.0"
   },
   "type": "module",
   "devDependencies": {
-    "vite": "5.4.11",
     "@vitejs/plugin-basic-ssl": "1.1.0",
-    "sharp": "0.33.5"
+    "sharp": "0.33.5",
+    "vite": "5.4.11"
   },
   "private": true,
   "engines": {
