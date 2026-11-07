@@ -1,4 +1,4 @@
-# Moments of the Unknown — AR
+# MOTU — Moments of the Unknown, AR
 
 Point a phone at a painting and the moment it came from plays on top of it.
 
@@ -96,10 +96,29 @@ recording with sound (saved via the share sheet) · Poet Mode (narration track +
 the journal entry) · screen stays awake · add to Home Screen. Add `?debug` to the URL to see
 frame rate and recognition scores.
 
+### Angle training and the pre-publish check
+
+Each artwork is also trained from two simulated side views (50° left and right,
+`pipeline/lib/views.mjs`), so a canvas locks from the side, not only head-on; the matcher
+maps those views back onto the real canvas plane (`src/ar/matcher.js`).
+
+Before publishing, run the check: every artwork is shown to the recognizer and tracker as a
+simulated phone shot, straight on and 40° from the side. The build is only good if every one
+is found in the top 3 and locks.
+
+```bash
+for i in 0 1 2 3; do node pipeline/check.mjs --shard=$i/4 & done; wait
+node pipeline/check.mjs --report      # exits 1 if anything fails
+```
+
 ## Hosting
 
 The built site is plain static files (`index.html`, a JS bundle, `manifest.json`,
 `index.bin.gz`, `targets/`, `media/`), with response headers in `_headers`. Any static host works.
+
+**This show runs on Cloudflare Pages, connected to this GitHub repo** (build command
+`npm run build:site`, output `dist`, `NODE_VERSION=22`): every push to `main` goes live.
+The built assets in `public/` are committed, so the host only runs Vite.
 
 **Recommended: Cloudflare Pages (free).** Static files are served with no bandwidth charge,
 so a busy opening can't run up a bill or get the site paused. Up to 20,000 files and
@@ -123,7 +142,9 @@ target + ~2.2 MB film. A visitor only downloads what they point at.
 
 * **Code** — MIT (see `LICENSE`). Use it for your own work.
 * **Artwork, films, photographs, sound and texts** of *Moments of the Unknown* — © Justin
-  Aversano, all rights reserved (see `ARTWORK-LICENSE.md`). They are not in this repository.
+  Aversano, all rights reserved (see `ARTWORK-LICENSE.md`). The built films, narration and
+  targets are included in `public/` so this exact viewer can be run from any copy; they are
+  not licensed for other use.
 
 Built on [MindAR](https://github.com/hiukim/mind-ar-js) (MIT), [three.js](https://threejs.org)
 (MIT) and [TensorFlow.js](https://github.com/tensorflow/tfjs) (Apache‑2.0). Recognition
