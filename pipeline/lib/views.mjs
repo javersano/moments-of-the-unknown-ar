@@ -88,9 +88,9 @@ export function renderView(img, quad, margin = 6) {
   return { data: out, width: w, height: h, inside };
 }
 
-// Default viewpoints: side-on both ways at two strengths, plus looking up / down.
+// Default viewpoints: side-on from both sides. Measured on simulated phone shots,
+// this alone takes a lock 65 degrees off-axis from 4/10 to 10/10, for ~20% more data;
+// adding pitch views and steeper yaws cost 3x the data for no further gain.
 export const DEFAULT_VIEWS = [
-  { yaw: 40, pitch: 0 }, { yaw: -40, pitch: 0 },
-  { yaw: 60, pitch: 0 }, { yaw: -60, pitch: 0 },
-  { yaw: 0, pitch: 35 }, { yaw: 0, pitch: -35 },
+  { yaw: 50, pitch: 0 }, { yaw: -50, pitch: 0 },
 ];

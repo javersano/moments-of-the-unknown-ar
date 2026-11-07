@@ -98,7 +98,7 @@ console.log(`${artworks.length} artworks (${config.collections.map((c) => `${c.n
 const md5 = (f) => crypto.createHash('md5').update(fs.readFileSync(f)).digest('hex');
 const upToDate = (out, srcHash) => fs.existsSync(out) && fs.existsSync(`${out}.src`) && fs.readFileSync(`${out}.src`, 'utf8') === srcHash;
 // Bump when compile-targets changes what it stores (e.g. the angle-trained keyframes), so old targets rebuild.
-const COMPILE = 'views-1';
+const COMPILE = 'views-2';
 
 // ------------------------------------------------------------ 1. reference images
 for (const a of artworks) {
