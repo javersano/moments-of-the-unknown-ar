@@ -96,7 +96,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const f of files) {
     const id = path.parse(f).name;
     const out = path.join(outDir, `${id}.mind`);
-    if (!force && fs.existsSync(out) && fs.statSync(out).mtimeMs > fs.statSync(path.join(inDir, f)).mtimeMs) continue;
+    if (!force && fs.existsSync(out) && fs.statSync(out).mtimeMs > fs.statSync(path.join(inDir, f)).mtimeMs) {
+      console.log(`${id}  ${Math.round(fs.statSync(out).size / 1024)} KB  (already compiled)`);
+      continue;
+    }
     const t0 = Date.now();
     const target = compileGrey(await loadGrey(path.join(inDir, f)), process.argv.includes('--plain') ? { views: [] } : {});
     const buf = encodeMind([target]);

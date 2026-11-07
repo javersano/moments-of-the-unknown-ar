@@ -1,15 +1,15 @@
 {
-  "title": "Moments of the Unknown",
+  "title": "MOTU — Moments of the Unknown",
   "volume": 0.5,
   "collections": [
     {
       "name": "366",
       "kind": "numbered",
-      "images": "content/paintings",
+      "images": "content/paintings-366",
       "videos": "content/media/366",
       "texts": "content/texts.json",
       "startDate": "2023-04-08",
-      "label": "Day {n} · {date}"
+      "label": "No. {nnn}  —  {date}"
     },
     {
       "name": "bonus",
