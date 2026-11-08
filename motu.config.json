@@ -15,6 +15,11 @@
       "name": "bonus",
       "kind": "list",
       "file": "content/bonus/bonus.json"
+    },
+    {
+      "name": "layers",
+      "kind": "list",
+      "file": "content/layers/layers.json"
     }
   ],
   "engine": {}

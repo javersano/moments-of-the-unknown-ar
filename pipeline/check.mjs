@@ -26,18 +26,20 @@ if (process.argv.includes('--report')) {
   // Some prints are the same image as another artwork (the four pumpkins and painting 041 are all
   // May 18; the four prints of the man share one film). A lock on a twin plays the same film: fine.
   const manifest = JSON.parse(fs.readFileSync(path.join(PUB, 'manifest.json')));
-  const filmDay = (a) => {
-    if (a.date) return a.date.replace(/,.*$/, '').toLowerCase().replace(' ', '-');
-    return path.basename(a.video.split('?')[0], '.mp4').toLowerCase();
+  const keys = (a) => {
+    const k = new Set([a.video.split('?')[0], path.basename(a.video.split('?')[0], '.mp4').toLowerCase()]);
+    if (a.date) k.add(a.date.replace(/,.*$/, '').toLowerCase().replace(' ', '-'));
+    return k;
   };
-  const film = new Map(manifest.artworks.map((a) => [a.id, filmDay(a)]));
-  for (const r of rows) if (r.wrong && film.get(r.wrong) === film.get(r.id)) { r.twin = r.wrong; r.wrong = null; }
+  const film = new Map(manifest.artworks.map((a) => [a.id, keys(a)]));
+  const same = (x, y) => [...film.get(x)].some((k) => film.get(y).has(k));
+  for (const r of rows) if (r.wrong && same(r.wrong, r.id)) { r.twin = r.wrong; r.wrong = null; }
   const by = (view) => rows.filter((r) => r.view === view);
   for (const v of ['front', 'side40']) {
     const rs = by(v);
-    console.log(`${v.padEnd(7)} found in top 3: ${rs.filter((r) => r.rank < 3).length}/${rs.length}   locked: ${rs.filter((r) => r.locked).length}/${rs.length}   wrong locks: ${rs.filter((r) => r.wrong).length}`);
+    console.log(`${v.padEnd(7)} found in top 3: ${rs.filter((r) => r.rank < 3).length}/${rs.length}   locked: ${rs.filter((r) => r.locked || r.twin).length}/${rs.length}   wrong locks: ${rs.filter((r) => r.wrong).length}`);
   }
-  const bad = rows.filter((r) => r.rank >= 3 || !r.locked || r.wrong);
+  const bad = rows.filter((r) => r.rank >= 3 || !(r.locked || r.twin) || r.wrong);
   if (bad.length) console.log('FAILED:', bad.map((r) => `${r.id}/${r.view}(rank ${r.rank}${r.wrong ? ', wrong lock ' + r.wrong : ''})`).join('  '));
   const twins = rows.filter((r) => r.twin);
   if (twins.length) console.log('same film, fine:', twins.map((r) => `${r.id}~${r.twin}`).join('  '));
@@ -92,10 +94,11 @@ const results = [...done];
 const T0 = Date.now();
 for (let i = si; i < manifest.artworks.length; i += sn) {
   const a = manifest.artworks[i];
+  if (process.env.ONLY && !process.env.ONLY.split(',').includes(a.id)) continue;
   for (const [view, yaw] of [['front', 0], ['side40', 40]]) {
     if (doneIds.has(`${a.id}/${view}`)) continue;
     const frame = await shot(path.join(ROOT, 'build/refs', `${a.id}.jpg`), yaw);
-    const crops = detectCrops(frame, 3);
+    const crops = detectCrops(frame, +process.env.CROPS || 3);
     const bag = new Map();
     for (const pts of crops) for (const [w, c] of bagOfWords(index, pts)) bag.set(w, (bag.get(w) || 0) + c);
     const sc = scoreBag(index, bag);
@@ -103,12 +106,12 @@ for (let i = si; i < manifest.artworks.length; i += sn) {
     const rank = order.indexOf(i);
     const m = new Matcher(frame.width, frame.height);
     let locked = false, wrong = null;
+    // like the phone: candidates are tried in score order and the first that verifies wins
     for (const pts of crops) {
-      for (const c of order.slice(0, 3)) {
-        if (m.matchDetection(kfs(c), pts).keyframeIndex === -1) continue;
-        if (c === i) locked = true; else wrong = manifest.artworks[c].id;
-      }
-      if (locked) break;
+      const hit = order.slice(0, 3).find((c) => m.matchDetection(kfs(c), pts).keyframeIndex !== -1);
+      if (hit === undefined) continue;
+      if (hit === i) { locked = true; break; }
+      wrong = manifest.artworks[hit].id;
     }
     results.push({ id: a.id, view, rank, locked, wrong });
   }
