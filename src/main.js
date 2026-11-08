@@ -1,7 +1,6 @@
 import {
   WebGLRenderer, Scene, Camera, Mesh, PlaneGeometry, MeshBasicMaterial,
   VideoTexture, Matrix4, SRGBColorSpace, LinearFilter,
-  BufferGeometry, Float32BufferAttribute, LineSegments, LineBasicMaterial, Color,
 } from 'three';
 import '@fontsource/playfair-display/400.css';
 import '@fontsource/playfair-display/400-italic.css';
@@ -118,22 +117,6 @@ plane.matrixAutoUpdate = false;
 plane.frustumCulled = false;
 plane.visible = false;
 scene.add(plane);
-const cornerMat = new LineBasicMaterial({ color: new Color('#ECE2D2'), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
-const corners = new LineSegments(new BufferGeometry(), cornerMat);
-corners.matrixAutoUpdate = false;
-corners.frustumCulled = false;
-corners.visible = false;
-scene.add(corners);
-function cornerGeometry(aspect) { // plane is 1 wide, `aspect` (h/w) tall, centred
-  const v = [], hw = 0.5, hh = aspect / 2, L = 0.07;
-  for (const o of [0.018, 0.03]) { // two strokes = a double rule
-    for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
-      const x = sx * (hw + o), y = sy * (hh + o);
-      v.push(x, y, 0, x - sx * L, y, 0, x, y, 0, x, y - sy * L, 0);
-    }
-  }
-  const g = new BufferGeometry(); g.setAttribute('position', new Float32BufferAttribute(v, 3)); return g;
-}
 const textures = new Map(); // video element -> VideoTexture
 
 function textureFor(el) {
@@ -240,8 +223,6 @@ function onUpdate({ index: i, corners: q, markerSize }) {
     planeAspect = w / h;
     plane.geometry.dispose();
     plane.geometry = new PlaneGeometry(1, h / w);
-    corners.geometry.dispose();
-    corners.geometry = cornerGeometry(h / w);
     fitTexture(material.map, art, el, planeAspect);
     material.needsUpdate = true;
     $('caption').textContent = art.label || '';
@@ -289,9 +270,8 @@ function frame(now) {
   opacity += Math.sign(target - opacity) * Math.min(Math.abs(target - opacity), step);
   material.opacity = opacity;
   const placed = !!quad && quadMatrix(quad, 1 / planeAspect, quadM);
-  plane.visible = corners.visible = opacity > 0.001 && placed;
-  cornerMat.opacity = Math.min(1, opacity * 1.2);
-  if (placed) { plane.matrix.copy(quadM); corners.matrix.copy(quadM); }
+  plane.visible = opacity > 0.001 && placed;
+  if (placed) plane.matrix.copy(quadM);
   if (poetArt) {
     const n = media.narration;
     narrProgress.style.width = barProgress.style.width = n.duration ? `${(100 * n.currentTime / n.duration).toFixed(1)}%` : '0%';
