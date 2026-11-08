@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "description": "Only films and narrations go through functions/_middleware.js (byte ranges for iPhone Safari). Everything else is plain static.",
+  "include": ["/media/*", "/audio/*"],
+  "exclude": []
+}

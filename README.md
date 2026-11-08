@@ -120,8 +120,18 @@ The built site is plain static files (`index.html`, a JS bundle, `manifest.json`
 `npm run build:site`, output `dist`, `NODE_VERSION=22`): every push to `main` goes live.
 The built assets in `public/` are committed, so the host only runs Vite.
 
+**iPhones need byte ranges.** Safari on iOS only plays `<video>`/`<audio>` when the server
+answers `Range` requests with `206 Partial Content`. Cloudflare Pages' static host always
+answers `200`, so `functions/_middleware.js` (routed to `/media/*` and `/audio/*` only, via
+`public/_routes.json`) cuts the requested slice. It runs as a Pages Function: free up to
+100,000 requests a day, and it needs Git or `wrangler pages deploy` (drag-and-drop uploads
+skip Functions). Netlify, S3/R2 and most web servers do ranges themselves. Test:
+`node test/range.test.mjs`, and `curl -sI -H 'Range: bytes=0-1' https://<site>/media/001.mp4`
+should print `206`.
+
 **Recommended: Cloudflare Pages (free).** Static files are served with no bandwidth charge,
-so a busy opening can't run up a bill or get the site paused. Up to 20,000 files and
+so a busy opening can't run up a bill or get the site paused (only the small range
+function above counts against a daily request allowance). Up to 20,000 files and
 25 MiB per file; the dashboard's drag-and-drop upload takes a folder of up to 1,000 files
 (366 artworks ≈ 760 files). Larger collections: `npx wrangler pages deploy dist`.
 
