@@ -26,6 +26,8 @@ export class Media {
     this.ctx = null;
     this.gains = new Map();
     this.pinned = null;       // artwork whose element must not be recycled
+    this.narrArt = null;      // artwork whose reading is loaded in `narration`
+    this.narrPaused = false;  // the visitor paused the reading themselves
   }
 
   _makeVideo() {
@@ -101,51 +103,86 @@ export class Media {
   /** Video element for an artwork (texture source). */
   video(art) { return this._elementFor(art); }
 
+  /** Film for an artwork. In Poet Mode (with a reading) the film plays silent under the voice. */
   async play(art, { poet = false, restart = false } = {}) {
     const el = this._elementFor(art);
-    const audible = !this.muted;
     for (const other of this.pool) if (other !== el) { this._gain(other, 0, 0.2); }
     if (restart) { try { el.currentTime = 0; } catch (e) {} }
-    const useNarration = poet && art.audio;
-    this._gain(el, audible && !useNarration ? this.volume : 0);
+    this._gain(el, !this.muted && !(poet && art.audio) ? this.volume : 0);
     try { await el.play(); } catch (e) {
       // sound not allowed yet: keep the picture alive, muted
       this.log('play with sound blocked, falling back to muted', e.message);
       el.muted = true;
       try { await el.play(); } catch (e2) { this.log('play failed', e2.message); }
     }
-    if (useNarration) {
-      if (!this.narration.src.endsWith(art.audio)) this.narration.src = art.audio;
-      try { this.narration.currentTime = 0; } catch (e) {}
-      this._gain(this.narration, audible ? 1 : 0);
-      this.narration.play().catch((e) => this.log('narration blocked', e.message));
-    } else {
-      this._gain(this.narration, 0, 0.2);
-      this.narration.pause();
-    }
     return el;
   }
 
-  /** Target lost: fade sound out but keep frames running (keeps iOS textures alive). */
+  /** Target lost: fade the film's sound but keep frames running (keeps iOS textures alive). The reading carries on. */
   release(art) {
     for (const [el, id] of this.owner) if (id === art.id) this._gain(el, 0, 0.25);
-    this._gain(this.narration, 0, 0.25);
-    setTimeout(() => this.narration.pause(), 300);
   }
 
+  /**
+   * Poet Mode reading for `art`. A new artwork starts its reading from the top;
+   * the same one carries on (and stays paused or finished if it was).
+   */
+  narrate(art) {
+    const n = this.narration;
+    if (!art || !art.audio) { this.stopNarration(); return; }
+    if (this.narrArt !== art.id) {
+      this.narrArt = art.id; this.narrPaused = false;
+      n.src = art.audio;
+      try { n.currentTime = 0; } catch (e) {}
+    } else if (!n.paused || n.ended || this.narrPaused) {
+      return;
+    }
+    this._gain(n, this.muted ? 0 : 1, 0.2);
+    n.play().catch((e) => this.log('narration blocked', e.message));
+  }
+
+  stopNarration() {
+    this.narrArt = null; this.narrPaused = false;
+    this._gain(this.narration, 0, 0.2);
+    setTimeout(() => { if (!this.narrArt) this.narration.pause(); }, 250);
+  }
+
+  /** Play/pause button on the journal. A finished reading starts again. */
+  toggleNarration() {
+    const n = this.narration;
+    if (!this.narrArt) return;
+    if (n.paused) {
+      if (n.ended) { try { n.currentTime = 0; } catch (e) {} }
+      this.narrPaused = false;
+      this._gain(n, this.muted ? 0 : 1, 0.15);
+      n.play().catch((e) => this.log('narration blocked', e.message));
+    } else {
+      this.narrPaused = true;
+      n.pause();
+    }
+  }
+
+  /** Tap on the camera view: pause or resume the film (and the reading with it). */
   togglePause(art) {
     const el = this._elementFor(art);
-    if (el.paused) { el.play(); if (this.narration.src && this.narration.paused && this.narration.currentTime > 0) this.narration.play(); return false; }
-    el.pause(); this.narration.pause(); return true;
+    const n = this.narration;
+    if (el.paused) {
+      el.play();
+      if (this.narrArt && n.paused && !n.ended && n.currentTime > 0) { this.narrPaused = false; n.play().catch(() => {}); }
+      return false;
+    }
+    el.pause();
+    if (this.narrArt && !n.paused) { this.narrPaused = true; n.pause(); }
+    return true;
   }
 
   setMuted(m, art, { poet = false } = {}) {
     this.muted = m;
     for (const el of this.pool) el.muted = false;
     if (m) { for (const el of [...this.pool, this.narration]) this._gain(el, 0, 0.15); return; }
+    if (this.narrArt) this._gain(this.narration, 1, 0.15);
     if (!art) return;
     const narr = poet && art.audio;
     for (const [el, id] of this.owner) if (id === art.id) this._gain(el, narr ? 0 : this.volume, 0.15);
-    if (narr) this._gain(this.narration, 1, 0.15);
   }
 }

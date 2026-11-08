@@ -33,6 +33,25 @@ camera frame ──► MindAR feature detector (once per frame, on the GPU)
 Because recognition and tracking use the *same* features, anything the recognizer can
 see, the tracker can lock onto.
 
+**Keeping the film on the canvas** (`src/ar/smooth.js`). MindAR turns the tracked points
+into a rigid 3D pose that assumes a 45° lens; phone lenses differ, so the film would sit a
+few pixels off and slide around at an angle. Instead, the painting's four corners are fitted
+straight from the tracked points as a homography (exact for any flat canvas, no lens model),
+smoothed together with a constant-velocity Kalman filter (follows a moving phone without
+trailing, damps tracker noise), and the film is drawn as that exact homography. Through a
+brief tracking drop the film drifts on along its last motion; if the painting was sweeping
+across the screen it fades almost at once.
+
+Measured with `test/make-shake.py` (synthetic handheld clips with ground-truth corners,
+including dim, noisy, JPEG-compressed ones) and `test/steady.mjs` (runs the real app in
+headless Chrome on that clip): film-to-canvas error 0.7–1.3 px, down from 4–18 px with the
+pose. `test/tune-steady.mjs` replays recorded runs to tune the filter offline. Settings can be
+tried on a phone without a rebuild: `?debug&engine={"accel":1200}`.
+
+**Poet Mode** shows the day's journal and plays its reading. Fold the journal down to a slim
+bar to see the painting; the reading carries on when the phone loses the painting for a
+moment, and moves on to the next painting's when you point at another one.
+
 ## Make your own
 
 You need [Node.js 20+](https://nodejs.org) and [ffmpeg](https://ffmpeg.org).

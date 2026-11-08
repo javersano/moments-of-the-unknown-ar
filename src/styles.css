@@ -103,14 +103,38 @@ body.poet-open #diary { display: flex; }
 #diary > *:not(.frame) { position: relative; }
 .diary-head { display: flex; justify-content: space-between; align-items: center; }
 .diary-head .strong { font-weight: 700; font-size: 13px; letter-spacing: .16em; }
+.head-btns { display: flex; gap: 6px; margin-right: -10px; }
+.head-btns .icon { margin: -10px 0; }
 .icon { width: 44px; height: 44px; margin: -10px -10px -10px 0; border: 0; background: transparent; display: flex; align-items: center; justify-content: center; cursor: pointer; }
 .icon svg { width: 16px; height: 16px; fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
 #diary-body { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; font-size: 17px; line-height: 1.62;
   white-space: pre-wrap; text-wrap: pretty; -webkit-user-select: text; user-select: text; }
-.narration { display: flex; flex-direction: column; gap: 8px; }
-.narration .track { height: 1px; background: rgba(43, 29, 19, .3); }
-#narr-progress { height: 3px; margin-top: -1px; width: 0; background: var(--ink); }
+.narration { display: flex; align-items: center; gap: 10px; }
+.narration .icon { margin: -6px 0 -6px -12px; }
+.narr-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.narration .track, .bar-track { height: 1px; background: rgba(43, 29, 19, .3); }
+#narr-progress, #bar-progress { height: 3px; margin-top: -1px; width: 0; background: var(--ink); }
 .narration .sc { font-size: 12px; }
+.play .i-play { display: none; }
+.play.paused .i-play { display: block; }
+.play.paused .i-pause { display: none; }
+.play svg { width: 18px; height: 18px; }
+.play .i-play path { fill: var(--ink); stroke: none; }
+
+/* Poet Mode folded: a slim bar, the painting in full view, the reading carries on */
+#poet-bar { position: fixed; left: 10px; right: 10px; bottom: max(12px, var(--safe-bottom)); z-index: 30; max-width: 480px; margin: 0 auto;
+  display: none; align-items: center; gap: 2px; padding: 10px 8px 15px 6px; box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
+body.poet-open.poet-min #poet-bar { display: flex; }
+body.poet-open.poet-min #diary { display: none; }
+#poet-bar .frame { inset: 5px; }
+#poet-bar > *:not(.frame) { position: relative; }
+#poet-bar .icon { margin: 0; flex-shrink: 0; }
+.bar-text { flex: 1; min-width: 0; border: 0; background: transparent; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 2px; padding: 0 4px; }
+#bar-caption { font-style: italic; font-size: 12.5px; letter-spacing: .03em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#bar-title { font-size: 19px; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bar-track { position: absolute !important; left: 16px; right: 16px; bottom: 11px; }
+body.running.searching.poet-open.poet-min #hint { bottom: calc(max(12px, var(--safe-bottom)) + 86px); }
 
 /* ---------- small things ---------- */
 #rec-border { position: fixed; inset: 0; border: 3px solid var(--oxblood); pointer-events: none; opacity: 0; z-index: 50; }

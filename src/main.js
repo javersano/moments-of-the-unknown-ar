@@ -1,6 +1,6 @@
 import {
-  WebGLRenderer, Scene, PerspectiveCamera, Mesh, PlaneGeometry, MeshBasicMaterial,
-  VideoTexture, Matrix4, Vector3, Quaternion, SRGBColorSpace, LinearFilter,
+  WebGLRenderer, Scene, Camera, Mesh, PlaneGeometry, MeshBasicMaterial,
+  VideoTexture, Matrix4, SRGBColorSpace, LinearFilter,
   BufferGeometry, Float32BufferAttribute, LineSegments, LineBasicMaterial, Color,
 } from 'three';
 import '@fontsource/playfair-display/400.css';
@@ -18,6 +18,8 @@ const params = new URLSearchParams(location.search);
 const DEBUG = params.has('debug');
 const MANIFEST_URL = new URL(params.get('manifest') || './manifest.json', location.href);
 const FADE_MS = 600;
+// ?debug&engine={"accel":1200} tries engine settings on a phone without a rebuild
+const ENGINE_OVERRIDES = (() => { try { return DEBUG && params.get('engine') ? JSON.parse(params.get('engine')) : {}; } catch (e) { return {}; } })();
 
 // ------------------------------------------------------------------ debug
 const debugEl = $('debug');
@@ -107,15 +109,19 @@ const renderer = new WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: t
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 renderer.outputColorSpace = SRGBColorSpace;
 const scene = new Scene();
-const cam3 = new PerspectiveCamera();
+// The film is drawn straight onto the painting's four on-screen corners (a
+// homography in clip space), so the camera is the identity.
+const cam3 = new Camera();
 const material = new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
 const plane = new Mesh(new PlaneGeometry(1, 1), material);
 plane.matrixAutoUpdate = false;
+plane.frustumCulled = false;
 plane.visible = false;
 scene.add(plane);
 const cornerMat = new LineBasicMaterial({ color: new Color('#ECE2D2'), transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
 const corners = new LineSegments(new BufferGeometry(), cornerMat);
 corners.matrixAutoUpdate = false;
+corners.frustumCulled = false;
 corners.visible = false;
 scene.add(corners);
 function cornerGeometry(aspect) { // plane is 1 wide, `aspect` (h/w) tall, centred
@@ -153,42 +159,72 @@ function fitTexture(tex, art, el, planeAspect) {
 }
 
 let engine = null;
+// camera pixels -> clip space: the camera fills the screen ("cover"), centred
+const view = { kx: 0, ky: 0, ox: 0, oy: 0 };
 function layout() {
   const cw = window.innerWidth, ch = window.innerHeight;
   renderer.setSize(cw, ch, false);
   const vw = camera.videoWidth, vh = camera.videoHeight;
-  if (!vw || !engine || !engine.controller) return;
-  const s = Math.max(cw / vw, ch / vh);
-  Object.assign(camera.style, { width: `${vw * s}px`, height: `${vh * s}px`, left: `${(cw - vw * s) / 2}px`, top: `${(ch - vh * s) / 2}px` });
-  const proj = engine.projection();
-  cam3.fov = (2 * Math.atan((ch / (vh * s)) / proj[5]) * 180) / Math.PI;
-  cam3.aspect = cw / ch;
-  cam3.near = proj[14] / (proj[10] - 1.0);
-  cam3.far = proj[14] / (proj[10] + 1.0);
-  cam3.updateProjectionMatrix();
+  if (!vw) return;
+  const s = Math.max(cw / vw, ch / vh), left = (cw - vw * s) / 2, top = (ch - vh * s) / 2;
+  Object.assign(camera.style, { width: `${vw * s}px`, height: `${vh * s}px`, left: `${left}px`, top: `${top}px` });
+  Object.assign(view, { kx: (2 * s) / cw, ox: (2 * left) / cw - 1, ky: (-2 * s) / ch, oy: 1 - (2 * top) / ch });
 }
 window.addEventListener('resize', layout);
+
+/**
+ * Matrix that lays the plane (1 wide, `aspect` tall, centred, y up) exactly onto
+ * the quad q = [TL, TR, BR, BL] in camera pixels, perspective-correct.
+ * Returns false for a degenerate quad.
+ */
+function quadMatrix(q, aspect, out) {
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = q;
+  // unit square -> quad (Heckbert): u runs along the top edge, v down the side
+  const sx = x0 - x1 + x2 - x3, sy = y0 - y1 + y2 - y3;
+  const dx1 = x1 - x2, dx2 = x3 - x2, dy1 = y1 - y2, dy2 = y3 - y2;
+  const den = dx1 * dy2 - dx2 * dy1;
+  if (!den) return false;
+  const g = (sx * dy2 - dx2 * sy) / den, h = (dx1 * sy - sx * dy1) / den;
+  const a = x1 - x0 + g * x1, b = x3 - x0 + h * x3, c = x0;
+  const d = y1 - y0 + g * y1, e = y3 - y0 + h * y3, f = y0;
+  // plane (X, Y) -> (u, v) = (X + 1/2, 1/2 - Y / aspect)
+  const ia = -1 / aspect;
+  const H = [a, b * ia, (a + b) / 2 + c, d, e * ia, (d + e) / 2 + f, g, h * ia, (g + h) / 2 + 1];
+  if (H[8] <= 0) return false; // the centre must be in front
+  // camera pixels -> clip
+  const { kx, ky, ox, oy } = view;
+  out.set(
+    kx * H[0] + ox * H[6], kx * H[1] + ox * H[7], 0, kx * H[2] + ox * H[8],
+    ky * H[3] + oy * H[6], ky * H[4] + oy * H[7], 0, ky * H[5] + oy * H[8],
+    0, 0, 1, 0,
+    H[6], H[7], 0, H[8],
+  );
+  return true;
+}
 
 // ------------------------------------------------------------------ app state
 const media = new Media({ videos: 3, volume: 0.5, log });
 let current = null;        // artwork currently anchored
 let currentEl = null;      // its video element
 let planeAspect = 4 / 3;
-let pose = null;           // latest world matrix
+let quad = null;           // latest smoothed corners of the painting (camera pixels)
 let showing = false;
 let opacity = 0;
 let userOpacity = store.get('opacity', 100);
 let poet = store.get('poet', false);
+let poetMin = store.get('poetMin', false);  // journal folded down to the slim bar
+let poetArt = null;        // whose journal and reading Poet Mode is on
 let muted = store.get('muted', false);
 let paused = false;
-const post = new Matrix4();
+const quadM = new Matrix4();
 
-function onUpdate({ index: i, worldMatrix, markerSize }) {
+function onUpdate({ index: i, corners: q, markerSize }) {
   const art = artworks[i];
-  if (!worldMatrix) {
+  if (!q) {
     if (current === art) {
+      // the film fades; a Poet Mode reading carries on until you leave it or find another painting
       showing = false; media.release(art);
-      document.body.classList.add('searching'); document.body.classList.remove('poet-open');
+      document.body.classList.add('searching');
       hint('Point at a painting — hold steady');
     }
     return;
@@ -206,24 +242,43 @@ function onUpdate({ index: i, worldMatrix, markerSize }) {
     plane.geometry = new PlaneGeometry(1, h / w);
     corners.geometry.dispose();
     corners.geometry = cornerGeometry(h / w);
-    post.compose(new Vector3(w / 2, h / 2, 0), new Quaternion(), new Vector3(w, w, w));
     fitTexture(material.map, art, el, planeAspect);
     material.needsUpdate = true;
-    $('caption').textContent = $('diary-caption').textContent = art.label || '';
-    $('title').textContent = $('diary-title').textContent = art.title || '';
-    $('diary-body').textContent = art.diary || '';
-    $('diary-body').scrollTop = 0;
+    $('caption').textContent = art.label || '';
+    $('title').textContent = art.title || '';
     log('found', art.id);
   }
   if (!showing) {
     showing = true;
     document.body.classList.remove('searching');
-    document.body.classList.toggle('poet-open', poet && !!art.diary);
     media.play(art, { poet, restart: isNew }).then((el) => { if (current === art) fitTexture(material.map, art, el, planeAspect); });
+    if (poet) listenTo(art);
   }
-  pose = worldMatrix;
+  quad = q;
 }
 
+// ------------------------------------------------------------------ Poet Mode
+// The journal follows the painting you're at. Losing the painting for a moment
+// (a hand moves, someone walks past) never stops the reading.
+function poetPanel() {
+  const open = poet && !!poetArt && !!(poetArt.diary || poetArt.audio);
+  document.body.classList.toggle('poet-open', open);
+  document.body.classList.toggle('poet-min', open && poetMin);
+}
+function listenTo(art) {
+  if (poetArt !== art) {
+    poetArt = art;
+    $('diary-caption').textContent = art.label || '';
+    $('diary-title').textContent = $('bar-title').textContent = art.title || art.label || '';
+    $('bar-caption').textContent = art.label || '';
+    $('diary-body').textContent = art.diary || '';
+    $('diary-body').scrollTop = 0;
+  }
+  media.narrate(art);
+  poetPanel();
+}
+
+const narrProgress = $('narr-progress'), barProgress = $('bar-progress');
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(64, now - last); last = now;
@@ -232,12 +287,13 @@ function frame(now) {
   const step = dt / (showing ? FADE_MS : 220);
   opacity += Math.sign(target - opacity) * Math.min(Math.abs(target - opacity), step);
   material.opacity = opacity;
-  plane.visible = corners.visible = opacity > 0.001 && !!pose;
+  const placed = !!quad && quadMatrix(quad, 1 / planeAspect, quadM);
+  plane.visible = corners.visible = opacity > 0.001 && placed;
   cornerMat.opacity = Math.min(1, opacity * 1.2);
-  if (pose) { plane.matrix.fromArray(pose).multiply(post); corners.matrix.copy(plane.matrix); }
-  if (poet && showing) {
+  if (placed) { plane.matrix.copy(quadM); corners.matrix.copy(quadM); }
+  if (poetArt) {
     const n = media.narration;
-    $('narr-progress').style.width = n.duration ? `${(100 * n.currentTime / n.duration).toFixed(1)}%` : '0%';
+    narrProgress.style.width = barProgress.style.width = n.duration ? `${(100 * n.currentTime / n.duration).toFixed(1)}%` : '0%';
   }
   renderer.render(scene, cam3);
   requestAnimationFrame(frame);
@@ -261,7 +317,7 @@ async function startEngine() {
   engine = new ArtworkEngine({
     video: camera, index, artworks,
     targetUrl: (i) => artworks[i].target,
-    options: manifest.engine || {},
+    options: { ...(manifest.engine || {}), ...ENGINE_OVERRIDES },
     onUpdate,
     onCandidates: (want, top, ratio) => {
       if (showing) return;
@@ -333,15 +389,37 @@ poetBtn.classList.toggle('active', poet);
 function setPoet(on) {
   poet = on; store.set('poet', poet);
   poetBtn.classList.toggle('active', poet);
-  document.body.classList.toggle('poet-open', poet && showing && !!(current && current.diary));
-  if (showing && current) media.play(current, { poet });
-  if (poet && current && !current.diary && !current.audio) toast('No journal for this one', 1400);
+  if (poet) {
+    if (showing && current) {
+      if (!current.diary && !current.audio) toast('No journal for this one', 1400);
+      listenTo(current);
+      media.play(current, { poet });      // the film goes quiet under the reading
+    }
+  } else {
+    media.stopNarration();
+    poetArt = null;
+    poetPanel();
+    if (showing && current) media.play(current, { poet: false });
+  }
 }
-$('diary-close').addEventListener('click', (e) => { e.stopPropagation(); setPoet(false); });
-poetBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  setPoet(!poet);
-});
+function setPoetMin(min) { poetMin = min; store.set('poetMin', poetMin); poetPanel(); }
+const tap = (id, fn) => $(id).addEventListener('click', (e) => { e.stopPropagation(); fn(); });
+tap('poet-btn', () => setPoet(!poet));
+tap('diary-close', () => setPoet(false));
+tap('bar-close', () => setPoet(false));
+tap('diary-min', () => setPoetMin(true));
+tap('bar-open', () => setPoetMin(false));
+tap('bar-expand', () => setPoetMin(false));
+for (const id of ['diary-play', 'bar-play']) tap(id, () => { if (media.ctx && media.ctx.state === 'suspended') media.ctx.resume(); media.toggleNarration(); });
+function syncPlayButtons() {
+  const paused = media.narration.paused;
+  for (const id of ['diary-play', 'bar-play']) {
+    $(id).classList.toggle('paused', paused);
+    $(id).setAttribute('aria-label', paused ? 'Play the reading' : 'Pause the reading');
+  }
+}
+for (const ev of ['play', 'pause', 'ended']) media.narration.addEventListener(ev, syncPlayButtons);
+syncPlayButtons();
 
 $('shot-btn').addEventListener('click', async (e) => {
   e.stopPropagation();
@@ -367,10 +445,10 @@ recBtn.addEventListener('click', async (e) => {
 
 // tap the camera view: pause / play
 document.body.addEventListener('click', (e) => {
-  if (e.target.closest('#card, #diary, #intro, #header')) return;
+  if (e.target.closest('#card, #diary, #poet-bar, #intro, #header')) return;
   if (!showing || !current) return;
   paused = media.togglePause(current);
   toast(paused ? 'Paused' : 'Playing', 800);
 });
 
-if (DEBUG) window.__motu = { get engine() { return engine; }, get current() { return current; }, artworks: () => artworks };
+if (DEBUG) window.__motu = { get engine() { return engine; }, get current() { return current; }, get media() { return media; }, artworks: () => artworks };

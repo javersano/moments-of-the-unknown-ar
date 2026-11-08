@@ -10,9 +10,9 @@ import * as tf from '@tensorflow/tfjs';
 import * as msgpack from '@msgpack/msgpack';
 import { Controller } from 'mind-ar/src/image-target/controller.js';
 import { Tracker } from 'mind-ar/src/image-target/tracker/tracker.js';
-import { OneEuroFilter } from 'mind-ar/src/libs/one-euro-filter.js';
 import { buildModelViewProjectionTransform, computeScreenCoordiate } from 'mind-ar/src/image-target/estimation/utils.js';
 import { bagOfWords, scoreBag } from './recognizer.js';
+import { CornerKalman, fitCorners, quadDistance, quadSize } from './smooth.js';
 
 const DEFAULTS = {
   bagFrames: 6,          // recognition evidence window (frames)
@@ -20,9 +20,14 @@ const DEFAULTS = {
   soloRatio: 1.35,       // top1/top2 above this -> verify only top1
   maxSlots: 3,           // artworks loaded into the matcher at once
   warmup: 2,             // tracked frames before showing
-  missTolerance: 8,      // lost frames before hiding
-  filterMinCF: 0.0005,
-  filterBeta: 0.25,
+  // Where the film sits (see smooth.js; tuned with test/steady.mjs + test/tune-steady.mjs)
+  fit: 'homography',     // corners from the tracked points ('homography', exact for a flat canvas) or the 3D pose ('pose')
+  noise: 1,              // expected corner noise, camera px
+  accel: 700,            // how sharply the painting may change speed on screen, px/s^2 (higher = follows faster, smooths less)
+  coast: 0.2,            // s; through a drop, the film drifts on along its last motion and slows to a stop
+  holdMs: 600,           // keep the film up this long through a tracking drop while the phone is steady...
+  fastHoldMs: 60,        // ...but only this long if the painting was moving fast (it has gone somewhere else)
+  fastSpeed: 80,         // px/s on screen that counts as moving fast
   cacheSize: 16,         // decoded .mind files kept in memory
   trackingKeyframe: 256, // 256: finer pose, more track points; 128: MindAR default, lighter
 };
@@ -43,6 +48,7 @@ export class ArtworkEngine {
     this.bags = [];
     this.running = false;
     this.focus = -1;                  // artwork the user is looking at (sticky)
+    this.clock = () => performance.now() / 1000; // seconds; the bench swaps in the clip's own clock
   }
 
   async start() {
@@ -197,8 +203,37 @@ export class ArtworkEngine {
 
   // ------------------------------------------------------------------ loop
   _freshState() {
-    return { slot: -1, tracking: false, showing: false, count: 0, miss: 0, mvt: null,
-      filter: new OneEuroFilter({ minCutOff: this.o.filterMinCF, beta: this.o.filterBeta }) };
+    const { noise, accel, coast } = this.o;
+    return { slot: -1, tracking: false, showing: false, count: 0, lostAt: 0, mvt: null, fit: null, out: null,
+      filter: new CornerKalman({ noise, accel, coast }) };
+  }
+
+  /** The painting's corners in camera pixels (TL, TR, BR, BL), straight from a pose. */
+  _corners(mvt, slot) {
+    const c = this.controller;
+    const [w, h] = c.markerDimensions[slot];
+    const mvp = buildModelViewProjectionTransform(c.projectionTransform, mvt);
+    const q = new Float64Array(8);
+    const pts = [[0, 0], [w, 0], [w, h], [0, h]];
+    for (let k = 0; k < 4; k++) {
+      const p = computeScreenCoordiate(mvp, pts[k][0], pts[k][1], 0);
+      if (!p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) return null;
+      q[2 * k] = p.x; q[2 * k + 1] = p.y;
+    }
+    return q;
+  }
+
+  /** Unsmoothed corners for this frame: the homography fit, else the pose. */
+  _raw(st) { return st.fit || this._corners(st.mvt, st.slot); }
+
+  /** Smoothed corners for this frame. */
+  _smooth(st, now) {
+    const raw = this._raw(st);
+    if (!raw) return st.out;
+    // back from a drop somewhere else on screen: jump there rather than glide across
+    if (st.out && st.fresh && quadDistance(raw, st.out) > 0.25 * quadSize(st.out)) st.filter.set(now, raw);
+    st.fresh = false;
+    return st.filter.filter(now, raw);
   }
 
   _hide() {
@@ -236,28 +271,38 @@ export class ArtworkEngine {
       }
 
       if (st.tracking && c.tracker) {
-        const mvt = await c._trackAndUpdate(inputT, st.mvt, st.slot);
-        if (mvt === null) st.tracking = false; else st.mvt = mvt;
+        // MindAR's _trackAndUpdate, keeping the matched points for the corner fit
+        const { worldCoords, screenCoords } = c.tracker.track(inputT, st.mvt, st.slot);
+        const mvt = worldCoords.length < 4 ? null : await c._workerTrackUpdate(st.mvt, { worldCoords, screenCoords });
+        if (mvt === null) { st.tracking = false; st.fit = null; } else {
+          st.mvt = mvt;
+          const [w, h] = c.markerDimensions[st.slot];
+          st.fit = this.o.fit === 'homography' ? fitCorners(worldCoords, screenCoords, w, h) : null;
+        }
       }
 
       if (st.slot >= 0) {
+        const now = this.clock();
         if (st.tracking) {
-          st.miss = 0;
+          if (st.lostAt) { st.lostAt = 0; st.fresh = true; }
           if (!st.showing && ++st.count > this.o.warmup) {
-            st.showing = true; st.filter.reset();
+            st.showing = true; st.filter.reset(); st.out = null;
             this.focus = this.slots[st.slot];
             this.bags = [];
           }
-        } else if (st.showing && ++st.miss > this.o.missTolerance) {
-          this._hide();
-          st.count = 0;
-        } else if (!st.showing) {
+        } else if (st.showing) {
+          // most drops are a frame or two: keep the film up, drifting along its last motion.
+          // If the painting was sweeping across the screen, let it go almost at once.
+          if (!st.lostAt) { st.lostAt = now; st.lostFast = st.filter.speed() > this.o.fastSpeed; }
+          const hold = (st.lostFast ? this.o.fastHoldMs : this.o.holdMs) / 1000;
+          if (now - st.lostAt > hold) { this._hide(); st.count = 0; st.lostAt = 0; }
+          else st.out = st.filter.coast(now) || st.out;
+        } else {
           st.count = 0;
         }
         if (st.showing) {
-          const m = c._glModelViewMatrix(st.mvt, st.slot);
-          const f = st.filter.filter(Date.now(), m);
-          this.onUpdate({ index: this.slots[st.slot], worldMatrix: f.slice(), markerSize: c.markerDimensions[st.slot], tracking: st.tracking });
+          if (st.tracking || !st.out) st.out = this._smooth(st, now) || st.out;
+          if (st.out) this.onUpdate({ index: this.slots[st.slot], corners: st.out, markerSize: c.markerDimensions[st.slot], tracking: st.tracking });
         }
       }
 

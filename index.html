@@ -78,16 +78,34 @@
     <div class="frame" aria-hidden="true"></div>
     <div class="diary-head">
       <span class="sc strong">Poet Mode</span>
-      <button id="diary-close" class="icon" aria-label="Leave Poet Mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+      <span class="head-btns">
+        <button id="diary-min" class="icon" aria-label="Fold the journal away and see the painting"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5"/></svg></button>
+        <button id="diary-close" class="icon" aria-label="Leave Poet Mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+      </span>
     </div>
     <p id="diary-caption"></p>
     <h2 id="diary-title"></h2>
     <div class="double-rule" aria-hidden="true"></div>
     <div id="diary-body"></div>
     <div class="narration">
-      <div class="track"><div id="narr-progress"></div></div>
-      <span class="sc">Read by Justin Aversano</span>
+      <button id="diary-play" class="icon play" aria-label="Pause the reading"><svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L12.6 8z"/></svg></button>
+      <div class="narr-col">
+        <div class="track"><div id="narr-progress"></div></div>
+        <span class="sc">Read by Justin Aversano</span>
+      </div>
     </div>
+  </section>
+
+  <section id="poet-bar" class="paper" aria-label="Poet Mode reading">
+    <div class="frame" aria-hidden="true"></div>
+    <button id="bar-play" class="icon play" aria-label="Pause the reading"><svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M5.5 3.5v9M10.5 3.5v9"/></svg><svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.2v9.6L12.6 8z"/></svg></button>
+    <button id="bar-open" class="bar-text" aria-label="Show the journal">
+      <span id="bar-caption"></span>
+      <span id="bar-title"></span>
+    </button>
+    <button id="bar-expand" class="icon" aria-label="Show the journal"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5"/></svg></button>
+    <button id="bar-close" class="icon" aria-label="Leave Poet Mode"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13"/></svg></button>
+    <div class="bar-track" aria-hidden="true"><div id="bar-progress"></div></div>
   </section>
 
   <div id="rec-border"></div>
