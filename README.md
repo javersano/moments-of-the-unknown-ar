@@ -7,6 +7,27 @@ portraits made from ten-second Super 8 films shot across all seven continents ov
 leap year April 8, 2023 – April 7, 2024. It runs in the phone's browser (no app to
 install) and is built so anyone can run it for their own work, on their own hosting.
 
+## For collectors
+
+**See it:** open **[motu-ar.pages.dev](https://motu-ar.pages.dev)** on your phone (Safari on
+iPhone, Chrome on Android), tap **Start**, allow the camera, turn the sound on and point at
+the painting or print. Tap **Poet** to read that day's journal while it is read aloud; fold
+the journal down to keep watching the film.
+
+**Keep it alive yourself:** everything the viewer needs is in this repository: the code,
+the trained images, the films and the readings. If the site above ever goes away, anyone
+can bring it back for free in a few minutes:
+1. Fork this repository on GitHub.
+2. In Cloudflare: Workers & Pages → Create → Pages → Connect to Git → choose your fork.
+3. Build command `npm run build:site`, output directory `dist`, environment variable
+   `NODE_VERSION` = `22`. Save and deploy.
+
+(Other hosts work too; see [Hosting](#hosting).)
+
+**Rights:** the code is open source (MIT). The paintings, films, photographs, journals and
+readings remain © Justin Aversano, all rights reserved. They are included so the work keeps
+working, not licensed for other use (see [ARTWORK-LICENSE.md](ARTWORK-LICENSE.md)).
+
 ## How it works
 
 Most web AR libraries compare every camera frame against every artwork, one by one.
