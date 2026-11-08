@@ -282,7 +282,8 @@ const narrProgress = $('narr-progress'), barProgress = $('bar-progress');
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(64, now - last); last = now;
-  const ready = currentEl && currentEl.readyState >= 2;
+  // ready once the film has shown a frame; a looping film dips for an instant at its start, ignore that
+  const ready = currentEl && (currentEl.readyState >= 2 || (!!currentEl.loadedSrc && currentEl.loadedSrc === currentEl.src));
   const target = showing && ready ? userOpacity / 100 : 0;
   const step = dt / (showing ? FADE_MS : 220);
   opacity += Math.sign(target - opacity) * Math.min(Math.abs(target - opacity), step);

@@ -4,6 +4,12 @@
 // iOS only lets an element play with sound after it has been played inside a
 // user gesture. We "prime" every pooled element once on the Start tap, then
 // keep reusing those same elements by swapping their src.
+//
+// iOS also gives the audio to one unmuted element at a time: a film that starts
+// or loops back to its first frame takes it from whatever else is playing, even
+// at zero volume. So a film that shouldn't be heard is muted outright (after its
+// fade), and the Poet Mode reading resumes itself if anything but the visitor
+// pauses it.
 
 const BLANK = './blank.mp4';
 
@@ -28,10 +34,17 @@ export class Media {
     this.pinned = null;       // artwork whose element must not be recycled
     this.narrArt = null;      // artwork whose reading is loaded in `narration`
     this.narrPaused = false;  // the visitor paused the reading themselves
+    this.heard = new Map();   // film element -> should be audible
+    this.muteTimers = new Map();
+    this.resumes = [];        // times the reading was resumed after an outside pause
+    this.narration.addEventListener('pause', () => this._keepReading());
   }
 
   _makeVideo() {
     const v = document.createElement('video');
+    // remember once a film has shown a frame, so a looping film's momentary
+    // stall at its first frame doesn't read as "not ready" (and flicker)
+    v.addEventListener('loadeddata', () => { v.loadedSrc = v.src; });
     v.playsInline = true;
     v.setAttribute('playsinline', '');
     v.setAttribute('webkit-playsinline', '');
@@ -59,6 +72,12 @@ export class Media {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+    // iOS can suspend or "interrupt" the whole audio graph (a call, another app): bring it back
+    if (this.ctx && !this.ctx.onstatechange) {
+      this.ctx.onstatechange = () => {
+        if (this.ctx.state !== 'running' && this.ctx.state !== 'closed') setTimeout(() => this.ctx.resume().catch(() => {}), 250);
+      };
+    }
     for (const el of [...this.pool, this.narration]) {
       el.src = BLANK;
       const p = el.play();
@@ -70,6 +89,7 @@ export class Media {
   stream() { return this.mix ? this.mix.stream : null; }
 
   _gain(el, value, ramp = 0.35) {
+    if (el !== this.narration) this._hear(el, value > 0, ramp);
     const g = this.gains.get(el);
     if (g && this.ctx) {
       const t = this.ctx.currentTime;
@@ -81,6 +101,33 @@ export class Media {
     }
   }
 
+  /** Unmute a film that should be heard; mute one that shouldn't, once its fade is done. */
+  _hear(el, on, ramp) {
+    this.heard.set(el, on);
+    clearTimeout(this.muteTimers.get(el));
+    if (on) { el.muted = false; return; }
+    const g = this.gains.get(el);
+    if (!g || g.gain.value < 0.01) { el.muted = true; return; }
+    this.muteTimers.set(el, setTimeout(() => { if (!this.heard.get(el)) el.muted = true; }, ramp * 1000 + 80));
+  }
+
+  /** The reading was paused. If the visitor didn't do it (iOS handed the audio elsewhere), carry on. */
+  _keepReading() {
+    const n = this.narration;
+    if (!this.narrArt || this.narrPaused || n.ended) return;
+    const now = performance.now();
+    this.resumes = this.resumes.filter((t) => now - t < 10000);
+    if (this.resumes.length >= 6) { this.log('reading keeps being interrupted; leaving it paused'); return; }
+    this.resumes.push(now);
+    if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
+    setTimeout(() => {
+      if (this.narrArt && !this.narrPaused && n.paused && !n.ended) {
+        this.log('reading interrupted, resuming');
+        n.play().catch((e) => this.log('reading resume failed', e.message));
+      }
+    }, 150);
+  }
+
   _elementFor(art) {
     for (const [el, id] of this.owner) if (id === art.id) { this._touch(el); return el; }
     // reuse least-recently-used element that isn't currently audible
@@ -90,6 +137,7 @@ export class Media {
     this._touch(el);
     el.pause();
     el.preload = 'auto';
+    el.loadedSrc = null;
     el.src = art.video;
     if (art.poster) el.poster = art.poster;
     el.load();
@@ -178,7 +226,6 @@ export class Media {
 
   setMuted(m, art, { poet = false } = {}) {
     this.muted = m;
-    for (const el of this.pool) el.muted = false;
     if (m) { for (const el of [...this.pool, this.narration]) this._gain(el, 0, 0.15); return; }
     if (this.narrArt) this._gain(this.narration, 1, 0.15);
     if (!art) return;
