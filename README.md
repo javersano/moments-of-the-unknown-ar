@@ -69,6 +69,17 @@ headless Chrome on that clip): film-to-canvas error 0.7–1.3 px, down from 4–
 pose. `test/tune-steady.mjs` replays recorded runs to tune the filter offline. Settings can be
 tried on a phone without a rebuild: `?debug&engine={"accel":1200}`.
 
+**Tracking points** (`pipeline/lib/track-extract.mjs`). Between frames, the tracker follows a
+painting by matching small patches picked from a low-resolution keyframe in its `.mind` file.
+MindAR spaces these a tenth of the keyframe apart, which gave most paintings only 25–50 points
+(13 at worst), bunched where the detail is. They're now picked at 1/30 spacing (median 153,
+minimum 43). `compile-targets.mjs` does this for new targets, and `build.mjs` re-picks them once
+(stamped) for targets compiled earlier, from the keyframe pixels already stored, without
+recompiling; recognition data is untouched. `pipeline/densify-tracking.mjs` does the same by hand. On a dim test clip, the weakest painting tested went from 11 px off the canvas to under
+2 px. With many points, a fast sweep can leave a few patches matching by chance, so the engine
+lets go and re-finds the painting when fewer than 20% of its points still match
+(`minTrackedShare`).
+
 **Poet Mode** shows the day's journal and plays its reading. Fold the journal down to a slim
 bar to see the painting; the reading carries on when the phone loses the painting for a
 moment, and moves on to the next painting's when you point at another one. It plays straight

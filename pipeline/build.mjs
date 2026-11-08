@@ -18,6 +18,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import sharp from 'sharp';
 import { readTargetPoints, buildIndex } from './build-index.mjs';
 import { serializeIndex } from '../src/ar/recognizer.js';
+import { densifyMind, TRACK_OCC_DIV } from './lib/track-extract.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const arg = (k, d) => (process.argv.find((a) => a.startsWith(`--${k}=`)) || `=${d}`).split('=').slice(1).join('=');
@@ -144,6 +145,22 @@ if (stale.length) {
     p.on('close', (c) => (c === 0 ? res() : rej(new Error(`compile worker ${i} exited ${c}`))));
   })));
   fs.rmSync(listDir, { recursive: true, force: true });
+}
+
+// ------------------------------------------------------------ 2b. tracking points
+// Targets compiled before Nov 2026 carry MindAR's sparse tracking points. Re-pick them from
+// the keyframes stored in each file (recognition data untouched); stamped, so it runs once.
+{
+  const want = `occ${TRACK_OCC_DIV}`;
+  let n = 0;
+  for (const a of artworks) {
+    const mind = mindOf(a), stampFile = `${mind}.track`;
+    if (!fs.existsSync(mind) || (fs.existsSync(stampFile) && fs.readFileSync(stampFile, 'utf8') === want)) continue;
+    fs.writeFileSync(mind, densifyMind(fs.readFileSync(mind)).out);
+    fs.writeFileSync(stampFile, want);
+    n++;
+  }
+  if (n) console.log(`tracking points: re-picked for ${n} targets`);
 }
 
 // ------------------------------------------------------------ 3. index

@@ -11,6 +11,9 @@ import sharp from 'sharp';
 import * as msgpack from '@msgpack/msgpack';
 import { Detector, buildImageList, buildTrackingImageList, buildCluster, extractTrackingFeatures, tf } from './lib/mind.mjs';
 import { DEFAULT_VIEWS, viewQuad, renderView, homography } from './lib/views.mjs';
+// Tracking points are spaced 1/TRACK_OCC_DIV of the keyframe apart (MindAR: 1/10, which
+// left most paintings with 25-50 points; see densify-tracking.mjs).
+import { extract as extractTrackingPoints, TRACK_OCC_DIV } from './lib/track-extract.mjs';
 
 export const TARGET_SIZE = 1024; // compile resolution (long side); 4:3 works -> 1024x768
 
@@ -76,6 +79,7 @@ export function compileGrey(targetImage, { views = DEFAULT_VIEWS, viewScales = V
     }
   }
   const trackingData = extractTrackingFeatures(buildTrackingImageList(targetImage), () => {});
+  for (const t of trackingData) t.points = extractTrackingPoints({ data: t.data, width: t.width, height: t.height, scale: t.scale }, { occDiv: TRACK_OCC_DIV });
   return {
     targetImage: { width: W, height: H },
     trackingData,

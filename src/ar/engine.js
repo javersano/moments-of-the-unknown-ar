@@ -30,6 +30,8 @@ const DEFAULTS = {
   fastSpeed: 80,         // px/s on screen that counts as moving fast
   cacheSize: 16,         // decoded .mind files kept in memory
   trackingKeyframe: 256, // 256: finer pose, more track points; 128: MindAR default, lighter
+  minTrackedShare: 0.2,  // let go (and re-find) when fewer than this share of the painting's points still match.
+                         // On a good lock about half or more match; a fast sweep that has slipped keeps only a few.
 };
 
 export class ArtworkEngine {
@@ -273,7 +275,10 @@ export class ArtworkEngine {
       if (st.tracking && c.tracker) {
         // MindAR's _trackAndUpdate, keeping the matched points for the corner fit
         const { worldCoords, screenCoords } = c.tracker.track(inputT, st.mvt, st.slot);
-        const mvt = worldCoords.length < 4 ? null : await c._workerTrackUpdate(st.mvt, { worldCoords, screenCoords });
+        st.matched = worldCoords.length;
+        st.points = c.tracker.trackingKeyframeList[st.slot].points.length;
+        const enough = worldCoords.length >= Math.max(4, this.o.minTrackedShare * st.points);
+        const mvt = enough ? await c._workerTrackUpdate(st.mvt, { worldCoords, screenCoords }) : null;
         if (mvt === null) { st.tracking = false; st.fit = null; } else {
           st.mvt = mvt;
           const [w, h] = c.markerDimensions[st.slot];

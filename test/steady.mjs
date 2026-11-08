@@ -58,6 +58,7 @@ await page.evaluate(([bits, bx, by, bw, bh, fps]) => {
     if (u.corners) {
       cur.corners = Array.from(u.corners); cur.tracking = u.tracking;
       const st = eng.state;
+      cur.matched = st.matched; cur.points = st.points;
       if (st.tracking && st.mvt) {
         const r = eng._corners(st.mvt, st.slot); if (r) cur.pose = Array.from(r);
         if (st.fit) cur.fit = Array.from(st.fit);
