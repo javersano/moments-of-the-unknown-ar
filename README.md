@@ -50,7 +50,16 @@ tried on a phone without a rebuild: `?debug&engine={"accel":1200}`.
 
 **Poet Mode** shows the day's journal and plays its reading. Fold the journal down to a slim
 bar to see the painting; the reading carries on when the phone loses the painting for a
-moment, and moves on to the next painting's when you point at another one.
+moment, and moves on to the next painting's when you point at another one. It plays straight
+through the film's 10-second loops.
+
+**Sound on iPhone** (`src/media.js`). Films and readings play natively from their elements,
+with exactly one unmuted at a time: on iPhone a film that starts or loops takes the audio
+from anything else unmuted, and a Web Audio mix can be suspended by the camera or a loop
+and stay silent until a tap. Every element is primed on the Start tap, any later tap
+re-asserts what should be playing, and the reading resumes itself if iOS pauses it.
+Screen recordings carry sound where the browser allows capturing it (Chrome, Android); on
+iPhone use the built-in screen recorder for sound.
 
 ## Make your own
 

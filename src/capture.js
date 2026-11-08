@@ -39,8 +39,9 @@ export function screenshot(camera, glCanvas) {
 const TYPES = ['video/mp4;codecs=avc1,mp4a', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
 
 export class Recorder {
-  constructor(camera, glCanvas, audioStream) {
-    this.camera = camera; this.gl = glCanvas; this.audio = audioStream;
+  /** audio: a function returning the audio tracks to record (or a MediaStream) */
+  constructor(camera, glCanvas, audio) {
+    this.camera = camera; this.gl = glCanvas; this.audio = audio;
     this.rec = null;
   }
   get supported() { return !!window.MediaRecorder; }
@@ -52,7 +53,8 @@ export class Recorder {
     const tick = () => { compose(canvas, this.camera, this.gl); this.raf = requestAnimationFrame(tick); };
     tick();
     const stream = canvas.captureStream(30);
-    if (this.audio) this.audio.getAudioTracks().forEach((t) => stream.addTrack(t));
+    const tracks = typeof this.audio === 'function' ? this.audio() : (this.audio ? this.audio.getAudioTracks() : []);
+    tracks.forEach((t) => stream.addTrack(t));
     const mimeType = TYPES.find((t) => MediaRecorder.isTypeSupported(t)) || '';
     const chunks = [];
     this.rec = new MediaRecorder(stream, mimeType ? { mimeType } : {});

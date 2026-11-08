@@ -251,7 +251,7 @@ function onUpdate({ index: i, corners: q, markerSize }) {
   if (!showing) {
     showing = true;
     document.body.classList.remove('searching');
-    media.play(art, { poet, restart: isNew }).then((el) => { if (current === art) fitTexture(material.map, art, el, planeAspect); });
+    media.play(art, { restart: isNew }).then((el) => { if (current === art) fitTexture(material.map, art, el, planeAspect); });
     if (poet) listenTo(art);
   }
   quad = q;
@@ -360,6 +360,11 @@ startBtn.addEventListener('click', async () => {
   requestAnimationFrame(frame);
 });
 
+// any tap lets iOS play sound again: bring back whatever should be playing
+for (const ev of ['touchend', 'click']) {
+  document.addEventListener(ev, () => { if (document.body.classList.contains('running')) media.unlock(); }, { capture: true, passive: true });
+}
+
 // keep the screen awake while people walk the show
 let wakeLock = null;
 async function requestWakeLock() {
@@ -380,8 +385,7 @@ soundBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   muted = !muted; store.set('muted', muted);
   soundBtn.classList.toggle('muted', muted);
-  if (media.ctx && media.ctx.state === 'suspended') media.ctx.resume();
-  media.setMuted(muted, showing ? current : null, { poet });
+  media.setMuted(muted);
   toast(muted ? 'Sound off' : 'Sound on', 1000);
 });
 
@@ -393,14 +397,12 @@ function setPoet(on) {
   if (poet) {
     if (showing && current) {
       if (!current.diary && !current.audio) toast('No journal for this one', 1400);
-      listenTo(current);
-      media.play(current, { poet });      // the film goes quiet under the reading
+      listenTo(current);                  // the film goes quiet under the reading
     }
   } else {
-    media.stopNarration();
+    media.stopNarration();                // the film's own sound comes back
     poetArt = null;
     poetPanel();
-    if (showing && current) media.play(current, { poet: false });
   }
 }
 function setPoetMin(min) { poetMin = min; store.set('poetMin', poetMin); poetPanel(); }
@@ -411,7 +413,7 @@ tap('bar-close', () => setPoet(false));
 tap('diary-min', () => setPoetMin(true));
 tap('bar-open', () => setPoetMin(false));
 tap('bar-expand', () => setPoetMin(false));
-for (const id of ['diary-play', 'bar-play']) tap(id, () => { if (media.ctx && media.ctx.state === 'suspended') media.ctx.resume(); media.toggleNarration(); });
+for (const id of ['diary-play', 'bar-play']) tap(id, () => media.toggleNarration());
 function syncPlayButtons() {
   const paused = media.narration.paused;
   for (const id of ['diary-play', 'bar-play']) {
@@ -433,7 +435,7 @@ let recorder = null;
 recBtn.disabled = !window.MediaRecorder;
 recBtn.addEventListener('click', async (e) => {
   e.stopPropagation();
-  recorder = recorder || new Recorder(camera, glCanvas, media.stream());
+  recorder = recorder || new Recorder(camera, glCanvas, () => media.audioTracks());
   if (recorder.recording) {
     recBtn.classList.remove('recording'); $('rec-border').classList.remove('visible');
     const out = await recorder.stop();
